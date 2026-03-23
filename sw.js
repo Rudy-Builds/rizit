@@ -7,6 +7,7 @@ const urlsToCache = [
   '/styles.css',
   '/app.js',
   '/manifest.json',
+  '/favicon.ico',
   '/icon-192.png',
   '/icon-512.png'
 ];
@@ -51,6 +52,12 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   // Ignore non-GET requests (e.g., POST)
   if (event.request.method !== 'GET') {
+    return;
+  }
+
+  // Only cache requests for our own origin
+  const url = new URL(event.request.url);
+  if (url.origin !== location.origin) {
     return;
   }
 

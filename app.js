@@ -1,205 +1,308 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const status = document.getElementById('status');
-  const errorDiv = document.getElementById('error');
-  const toast = document.getElementById('toast');
-  const iosInstructions = document.getElementById('ios-instructions');
-  const urlInput = document.getElementById('urlInput');
-  const submitUrl = document.getElementById('submitUrl');
-  const sharePrompt = document.getElementById('sharePrompt');
-  const desktopInstructions = document.getElementById('desktop-instructions');
-  const isDesktop = window.innerWidth > 768; // Adjust width as needed for desktop detection
-  if (isDesktop) {
-    desktopInstructions.classList.remove('hidden');
+// ─── Theme ───────────────────────────────────────────────────
+function initTheme() {
+  const stored = localStorage.getItem('rizit_theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  if (stored) {
+    document.documentElement.setAttribute('data-theme', stored);
+  } else if (prefersDark) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
+}
+
+function toggleTheme() {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('rizit_theme', next);
+}
+
+// ─── Backend ─────────────────────────────────────────────────
+function getArchiveUrl(url) {
+  const backend = localStorage.getItem('rizit_backend') || 'archive.is';
+  const encoded = encodeURIComponent(url);
+  if (backend === 'web.archive.org') {
+    return `https://web.archive.org/web/99999999999999/${encoded}`;
+  }
+  return `https://archive.is/newest/${encoded}`;
+}
+
+function getBackendLabel(backend) {
+  return backend === 'web.archive.org' ? 'Wayback' : 'archive.is';
+}
+
+// ─── History ────────────────────────────────────────────────
+const HISTORY_KEY = 'rizit_history';
+const MAX_HISTORY = 10;
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch { return []; }
+}
+
+function saveToHistory(url, archiveUrl) {
+  const backend = localStorage.getItem('rizit_backend') || 'archive.is';
+  let history = getHistory().filter(h => h.url !== url);
+  history.unshift({ url, archiveUrl, backend, timestamp: new Date().toISOString() });
+  history = history.slice(0, MAX_HISTORY);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  renderHistory();
+}
+
+function clearHistory() {
+  localStorage.removeItem(HISTORY_KEY);
+  renderHistory();
+}
+
+function renderHistory() {
+  const section = document.getElementById('history-section');
+  const list = document.getElementById('historyList');
+  const empty = document.getElementById('historyEmpty');
+  if (!section || !list) return;
+
+  const history = getHistory();
+
+  if (history.length === 0) {
+    section.classList.add('hidden');
+    return;
   }
 
-  // Detect iOS
+  section.classList.remove('hidden');
+  list.innerHTML = history.map(item => {
+    const d = new Date(item.timestamp);
+    const time = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const badge = getBackendLabel(item.backend);
+    return `
+      <div class="history-item">
+        <span class="history-url" title="${item.url}">${item.url}</span>
+        <div class="history-meta">
+          <span class="history-time">${time}</span>
+          <span class="history-backend-badge">${badge}</span>
+        </div>
+        <button class="re-archive-btn" data-url="${item.url}">Re-archive</button>
+      </div>`;
+  }).join('');
+
+  list.querySelectorAll('.re-archive-btn').forEach(btn => {
+    btn.addEventListener('click', () => handleSharedUrl(btn.dataset.url));
+  });
+}
+
+// ─── Install Banner ──────────────────────────────────────────
+let deferredPrompt = null;
+
+function initInstallBanner() {
+  if (localStorage.getItem('rizit_install_dismissed') === 'true') return;
+
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('installBanner').classList.remove('hidden');
+  });
+
+  document.getElementById('installBtn')?.addEventListener('click', async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    document.getElementById('installBanner').classList.add('hidden');
+  });
+
+  document.getElementById('dismissInstall')?.addEventListener('click', () => {
+    document.getElementById('installBanner').classList.add('hidden');
+    localStorage.setItem('rizit_install_dismissed', 'true');
+  });
+}
+
+// ─── Collapsible Sections ────────────────────────────────────
+function initCollapsibles() {
+  document.getElementById('historyToggle')?.addEventListener('click', () => {
+    const section = document.getElementById('history-section');
+    const body = document.getElementById('historyBody');
+    section.classList.toggle('open');
+    body.classList.toggle('hidden');
+  });
+
+  document.getElementById('howToToggle')?.addEventListener('click', () => {
+    const section = document.querySelector('.section:last-of-type');
+    const body = document.getElementById('howToBody');
+    section.classList.toggle('open');
+    body.classList.toggle('hidden');
+  });
+}
+
+// ─── Platform Pills ─────────────────────────────────────────
+function initPlatformPills() {
+  const pills = document.querySelectorAll('.pill[data-platform]');
+  const guides = {
+    android: document.getElementById('guide-android'),
+    ios:     document.getElementById('guide-ios'),
+    desktop: document.getElementById('guide-desktop'),
+  };
+
+  // Detect current platform
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+  const platform = isIOS ? 'ios' : isDesktop ? 'desktop' : 'android';
 
-  // Show toast notification
-  function showToast() {
-    toast.classList.remove('hidden');
-    toast.classList.add('show');
-    setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => toast.classList.add('hidden'), 500);
-    }, 2000);
+  function showPlatform(p) {
+    pills.forEach(pl => pl.classList.toggle('active', pl.dataset.platform === p));
+    Object.entries(guides).forEach(([k, el]) => {
+      if (el) el.classList.toggle('hidden', k !== p);
+    });
   }
 
-  // Show error message
-  function showError(message) {
-    errorDiv.textContent = message;
-    errorDiv.classList.remove('hidden');
-  }
+  pills.forEach(pill => {
+    pill.addEventListener('click', () => showPlatform(pill.dataset.platform));
+  });
 
-  // Clear error message
-  function clearError() {
-    errorDiv.textContent = '';
-    errorDiv.classList.add('hidden');
-  }
+  showPlatform(platform);
+}
 
-  // Validate URL
-  function isValidUrl(string) {
+// ─── Core: URL handling ──────────────────────────────────────
+function isValidUrl(string) {
+  try { new URL(string); return true; }
+  catch { return false; }
+}
+
+async function checkClipboardPermission() {
+  if ('permissions' in navigator) {
     try {
-      new URL(string);
-      return true;
-    } catch (_) {
+      const s = await navigator.permissions.query({ name: 'clipboard-write' });
+      return s.state === 'granted' || s.state === 'prompt';
+    } catch {}
+  }
+  return true;
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
       return false;
     }
   }
+}
 
-  // Check clipboard permission (where supported)
-  async function checkClipboardPermission() {
-    if ('permissions' in navigator && 'query' in navigator.permissions) {
-      try {
-        const permissionStatus = await navigator.permissions.query({ name: 'clipboard-write' });
-        console.log('Clipboard permission status:', permissionStatus.state);
-        return permissionStatus.state === 'granted' || permissionStatus.state === 'prompt';
-      } catch (err) {
-        console.warn('Clipboard permission check failed:', err);
-        return true; // Assume permission might be granted (fallback for unsupported browsers)
-      }
-    }
-    return true; // Fallback for browsers that don’t support the Permissions API (e.g., Safari)
+function showToast() {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+function showError(msg) {
+  const el = document.getElementById('error');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function clearError() {
+  const el = document.getElementById('error');
+  if (el) el.classList.add('hidden');
+}
+
+function setStatus(html) {
+  const el = document.getElementById('status');
+  if (el) el.innerHTML = html;
+}
+
+async function handleSharedUrl(url) {
+  url = url.split('?')[0].trim();
+  if (!url) return;
+
+  clearError();
+
+  if (!url.includes('.')) {
+    showError('That doesn\'t look like a URL. Try something like https://example.com');
+    return;
+  }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+  }
+  if (!isValidUrl(url)) {
+    showError('Invalid URL. Check the format (e.g. https://example.com)');
+    return;
   }
 
-  // Handle shared URL
-  async function handleSharedUrl(url) {
-    url = url.split("?")[0];
-    try {
-      // Clear any previous errors
-      clearError();
+  const backend = localStorage.getItem('rizit_backend') || 'archive.is';
+  const backendLabel = getBackendLabel(backend);
+  const archiveUrl = getArchiveUrl(url);
 
-      console.log('Received URL:', url);
+  setStatus('<span class="spinner"></span> Checking with ' + backendLabel + '…');
 
-      // Check if the input looks like a URL; if not, treat it as invalid
-      if (!url.includes('.')) {
-        throw new Error('Input does not appear to be a URL. Please share a valid webpage URL.');
-      }
+  const copied = await copyText(archiveUrl);
+  const newTab = window.open(archiveUrl, '_blank');
 
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = `https://${url}`;
-      }
-
-      if (!isValidUrl(url)) {
-        throw new Error('Invalid URL format. Please ensure the URL is correct (e.g., https://example.com).');
-      }
-
-      status.textContent = `Processing ${url}...`;
-
-      const archiveUrl = `http://archive.is/newest/${encodeURIComponent(url)}`;
-      console.log('Constructed archive URL:', archiveUrl);
-
-      // Copy the archive URL to clipboard
-      let clipboardSuccess = false;
-      const canWriteToClipboard = await checkClipboardPermission();
-      if (canWriteToClipboard) {
-        try {
-          await navigator.clipboard.writeText(archiveUrl);
-          console.log('Clipboard write successful');
-          clipboardSuccess = true;
-        } catch (clipboardErr) {
-          console.warn('Clipboard write failed:', clipboardErr);
-          // Fallback: Use execCommand for older browsers
-          const textarea = document.createElement('textarea');
-          textarea.value = archiveUrl;
-          document.body.appendChild(textarea);
-          textarea.select();
-          try {
-            document.execCommand('copy');
-            console.log('Fallback clipboard write successful');
-            clipboardSuccess = true;
-          } catch (fallbackErr) {
-            console.error('Fallback clipboard write failed:', fallbackErr);
-          }
-          document.body.removeChild(textarea);
-        }
-      } else {
-        console.warn('Clipboard permission denied');
-      }
-
-      // Open the archive URL in a new tab
-      const newTab = window.open(archiveUrl, '_blank');
-      if (!newTab) {
-        status.textContent = 'Popup blocked. Click here to open: ';
-        const link = document.createElement('a');
-        link.href = archiveUrl;
-        link.textContent = archiveUrl;
-        link.target = '_blank';
-        status.appendChild(link);
-      } else {
-        status.textContent = 'Opening archive.is with your URL...';
-      }
-
-      if (clipboardSuccess) {
-        showToast();
-      } else {
-        showError('Failed to copy the link to clipboard. You can manually copy it from the URL above.');
-      }
-    } catch (err) {
-      console.error('Error in handleSharedUrl:', err);
-      showError(err.message);
-    }
-  }
-
-  // Check if URL was shared via Web Share Target (works on Android)
-  const urlParams = new URLSearchParams(window.location.search);
-  const sharedUrl = urlParams.get('url') || urlParams.get('text');
-  console.log('URL params:', urlParams.toString());
-  console.log('Shared URL:', sharedUrl);
-
-  if (sharedUrl) {
-    const cleanedUrl = sharedUrl.trim();
-    if (cleanedUrl) {
-      handleSharedUrl(cleanedUrl);
-    } else {
-      showError('No valid URL shared. Please try sharing a webpage again.');
-    }
-  } else if (isIOS) {
-    iosInstructions.classList.remove('hidden');
+  if (!newTab) {
+    setStatus('Popup blocked. <a href="' + archiveUrl + '" target="_blank" rel="noopener">Open ' + backendLabel + '</a> — archive link is in your clipboard.');
   } else {
-    status.textContent = 'Please share a webpage with rizit using the share menu.';
+    setStatus('Opening ' + backendLabel + '… the archive link is in your clipboard.');
   }
 
-    // Handle manual URL submission for desktop
-    desktopSubmitUrl.addEventListener('click', () => {
-      const url = desktopUrlInput.value.trim();
-      if (url) {
-        handleSharedUrl(url);
-      } else {
-        showError('Please enter a valid URL.');
-      }
-    });
+  if (copied) showToast();
+  else showError('Couldn\'t copy to clipboard — the archive link is shown above.');
 
-  // Handle manual URL submission
-  submitUrl.addEventListener('click', () => {
-    const url = urlInput.value.trim();
-    if (url) {
-      handleSharedUrl(url);
-    } else {
-      showError('Please enter a valid URL.');
-    }
-  });
+  saveToHistory(url, archiveUrl);
+}
 
-  // Handle share prompt for iOS
-  if (sharePrompt) {
-    sharePrompt.addEventListener('click', async () => {
-      if (navigator.share) {
-        try {
-          const shareData = await navigator.share({
-            title: 'Share a webpage with rizit',
-            text: 'Please share the URL of the webpage you want to archive.'
-          });
-          const url = shareData.url || shareData.text;
-          if (url) {
-            handleSharedUrl(url);
-          }
-        } catch (err) {
-          console.error('Share failed:', err);
-          showError('Share cancelled or failed. Please paste the URL manually.');
-        }
-      } else {
-        showError('Web Share API not supported. Please paste the URL manually.');
-      }
+// ─── Init ───────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
+  initInstallBanner();
+  initCollapsibles();
+  initPlatformPills();
+  renderHistory();
+
+  // Backend selector
+  const backendSelect = document.getElementById('backendSelect');
+  if (backendSelect) {
+    const stored = localStorage.getItem('rizit_backend');
+    if (stored) backendSelect.value = stored;
+    backendSelect.addEventListener('change', e => {
+      localStorage.setItem('rizit_backend', e.target.value);
     });
+  }
+
+  // Theme toggle
+  document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
+
+  // Clear history
+  document.getElementById('clearHistory')?.addEventListener('click', clearHistory);
+
+  // Single URL form (hero input)
+  const urlForm = document.getElementById('urlForm');
+  const urlInput = document.getElementById('urlInput');
+  if (urlForm && urlInput) {
+    urlForm.addEventListener('submit', e => {
+      e.preventDefault();
+      handleSharedUrl(urlInput.value);
+    });
+    urlInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); handleSharedUrl(urlInput.value); }
+    });
+  }
+
+  // Web Share Target (Android shared this app a URL)
+  const params = new URLSearchParams(window.location.search);
+  const shared = params.get('url') || params.get('text');
+  if (shared?.trim()) {
+    handleSharedUrl(shared.trim());
+  }
+
+  // Service Worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+      .then(() => console.log('SW registered'))
+      .catch(err => console.error('SW registration failed:', err));
   }
 });
