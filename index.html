@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,12 +7,29 @@
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#333333" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
 </head>
 <body>
   <div class="container">
-    <h1>rizit</h1>
-    
+    <div class="header-controls">
+      <h1>rizit</h1>
+      <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode">
+        <span class="theme-icon">&#9790;</span>
+      </button>
+    </div>
+
+    <!-- Settings -->
+    <div class="settings">
+      <label for="backendSelect">Archive Backend:</label>
+      <select id="backendSelect">
+        <option value="archive.is">archive.is</option>
+        <option value="web.archive.org">Wayback Machine</option>
+      </select>
+    </div>
+
     <!-- App Description -->
     <div class="instructions">
       <p>Rizit quickly checks if a webpage has been archived and automatically loads the saved version in a new tab.</p>
@@ -38,37 +55,52 @@
 
     <p id="status">Share a webpage with Rizit to get started!</p>
     <div id="error" class="error hidden"></div>
-    
+
     <!-- iOS specific instructions -->
     <div id="ios-instructions" class="hidden">
-      <p><strong>iOS Users:</strong> Sadly Apple doesn’t allow progressive web apps to appear on the share list.</p>
+      <p><strong>iOS Users:</strong> Sadly Apple doesn't allow progressive web apps to appear on the share list.</p>
       <p>Please paste the URL manually:</p>
       <input type="text" id="urlInput" placeholder="Paste URL here">
       <button id="submitUrl">Submit</button>
     </div>
 
     <!-- Desktop specific instructions -->
-<div id="desktop-instructions" class="hidden">
-  <p><strong>Desktop Users:</strong> Rizit works best on mobile devices, but you can still use it on your desktop browser.</p>
-  <p>To use Rizit on your desktop:</p>
-  <ol>
-    <li>Copy the URL of the webpage you want to archive.</li>
-    <li>Paste the URL into the input field below.</li>
-    <li>Click the "Submit" button to load the archived version.</li>
-  </ol>
-  <input type="text" id="desktopUrlInput" placeholder="Paste URL here">
-  <button id="desktopSubmitUrl">Submit</button>
-</div>
-    
+    <div id="desktop-instructions" class="hidden">
+      <p><strong>Desktop Users:</strong> Rizit works best on mobile devices, but you can still use it on your desktop browser.</p>
+      <p>To use Rizit on your desktop:</p>
+      <ol>
+        <li>Copy the URL of the webpage you want to archive.</li>
+        <li>Paste the URL into the input field below.</li>
+        <li>Click the "Submit" button to load the archived version.</li>
+      </ol>
+      <input type="text" id="desktopUrlInput" placeholder="Paste URL here">
+      <button id="desktopSubmitUrl">Submit</button>
+    </div>
+
+    <!-- History Section -->
+    <div id="history-section" class="history-section hidden">
+      <button id="historyToggle" class="history-toggle">
+        <span>Recent</span>
+        <span class="toggle-icon">&#9660;</span>
+      </button>
+      <div id="historyContent" class="history-content hidden">
+        <div id="historyList"></div>
+        <button id="clearHistory" class="clear-history">Clear history</button>
+      </div>
+    </div>
+
     <div id="toast" class="toast hidden">Link has been copied to your clipboard</div>
   </div>
+
+  <!-- Install Banner -->
+  <div id="installBanner" class="install-banner hidden">
+    <span>Install Rizit as an app for easier access</span>
+    <div class="install-banner-buttons">
+      <button id="installBtn" class="install-btn">Install</button>
+      <button id="dismissInstall" class="dismiss-btn" aria-label="Dismiss">&times;</button>
+    </div>
+  </div>
+
   <script src="app.js"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then(() => console.log('Service Worker registered'))
-        .catch(err => console.error('Service Worker registration failed:', err));
-    }
-  </script>
 </body>
 </html>

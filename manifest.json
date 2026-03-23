@@ -1,28 +1,31 @@
 {
-    "name": "rizit",
-    "short_name": "rizit",
-    "start_url": "/index.html",
-    "display": "standalone",
-    "background_color": "#f0f0f0",
-    "theme_color": "#333",
-    "icons": [
-      {
-        "src": "icon-192.png",
-        "sizes": "192x192",
-        "type": "image/png"
-      },
-      {
-        "src": "icon-512.png",
-        "sizes": "512x512",
-        "type": "image/png"
-      }
-    ],
-    "share_target": {
-      "action": "/index.html",
-      "method": "GET",
-      "params": {
-        "url": "url",
-        "text": "text"
-      }
+  "name": "rizit",
+  "short_name": "rizit",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "lang": "en",
+  "categories": ["utilities"],
+  "background_color": "#333333",
+  "theme_color": "#333333",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "url": "url",
+      "text": "text"
     }
   }
+}
