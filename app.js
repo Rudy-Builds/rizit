@@ -1,26 +1,30 @@
 // ─── Theme ───────────────────────────────────────────────────
-function initTheme() {
-  const stored = localStorage.getItem('rizit_theme');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+// Initial theme is applied by the inline script in <head> to avoid a flash.
+const SUN_ICON = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+const MOON_ICON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
 
-  if (stored) {
-    document.documentElement.setAttribute('data-theme', stored);
-  } else if (prefersDark) {
-    document.documentElement.setAttribute('data-theme', 'dark');
-  }
+function updateThemeIcon() {
+  const icon = document.getElementById('themeIcon');
+  if (!icon) return;
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  icon.innerHTML = dark ? SUN_ICON : MOON_ICON;
 }
 
 function toggleTheme() {
   const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
   localStorage.setItem('rizit_theme', next);
+  updateThemeIcon();
 }
 
 // ─── Backend ─────────────────────────────────────────────────
+function getBackend() {
+  return localStorage.getItem('rizit_backend') || 'archive.is';
+}
+
 function getArchiveUrl(url) {
-  const backend = localStorage.getItem('rizit_backend') || 'archive.is';
   const encoded = encodeURIComponent(url);
-  if (backend === 'web.archive.org') {
+  if (getBackend() === 'web.archive.org') {
     return `https://web.archive.org/web/99999999999999/${encoded}`;
   }
   return `https://archive.is/newest/${encoded}`;
@@ -40,9 +44,8 @@ function getHistory() {
 }
 
 function saveToHistory(url, archiveUrl) {
-  const backend = localStorage.getItem('rizit_backend') || 'archive.is';
   let history = getHistory().filter(h => h.url !== url);
-  history.unshift({ url, archiveUrl, backend, timestamp: new Date().toISOString() });
+  history.unshift({ url, archiveUrl, backend: getBackend(), timestamp: new Date().toISOString() });
   history = history.slice(0, MAX_HISTORY);
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
   renderHistory();
@@ -56,7 +59,6 @@ function clearHistory() {
 function renderHistory() {
   const section = document.getElementById('history-section');
   const list = document.getElementById('historyList');
-  const empty = document.getElementById('historyEmpty');
   if (!section || !list) return;
 
   const history = getHistory();
@@ -67,24 +69,39 @@ function renderHistory() {
   }
 
   section.classList.remove('hidden');
-  list.innerHTML = history.map(item => {
+  list.replaceChildren(...history.map(item => {
     const d = new Date(item.timestamp);
     const time = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const badge = getBackendLabel(item.backend);
-    return `
-      <div class="history-item">
-        <span class="history-url" title="${item.url}">${item.url}</span>
-        <div class="history-meta">
-          <span class="history-time">${time}</span>
-          <span class="history-backend-badge">${badge}</span>
-        </div>
-        <button class="re-archive-btn" data-url="${item.url}">Re-archive</button>
-      </div>`;
-  }).join('');
 
-  list.querySelectorAll('.re-archive-btn').forEach(btn => {
-    btn.addEventListener('click', () => handleSharedUrl(btn.dataset.url));
-  });
+    const row = document.createElement('div');
+    row.className = 'history-item';
+
+    const urlSpan = document.createElement('span');
+    urlSpan.className = 'history-url';
+    urlSpan.title = item.url;
+    urlSpan.textContent = item.url;
+
+    const meta = document.createElement('div');
+    meta.className = 'history-meta';
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'history-time';
+    timeSpan.textContent = time;
+
+    const badge = document.createElement('span');
+    badge.className = 'history-backend-badge';
+    badge.textContent = getBackendLabel(item.backend);
+
+    meta.append(timeSpan, badge);
+
+    const btn = document.createElement('button');
+    btn.className = 're-archive-btn';
+    btn.dataset.url = item.url;
+    btn.textContent = 'Re-archive';
+
+    row.append(urlSpan, meta, btn);
+    return row;
+  }));
 }
 
 // ─── Install Banner ──────────────────────────────────────────
@@ -116,17 +133,13 @@ function initInstallBanner() {
 // ─── Collapsible Sections ────────────────────────────────────
 function initCollapsibles() {
   document.getElementById('historyToggle')?.addEventListener('click', () => {
-    const section = document.getElementById('history-section');
-    const body = document.getElementById('historyBody');
-    section.classList.toggle('open');
-    body.classList.toggle('hidden');
+    document.getElementById('history-section').classList.toggle('open');
+    document.getElementById('historyBody').classList.toggle('hidden');
   });
 
   document.getElementById('howToToggle')?.addEventListener('click', () => {
-    const section = document.querySelector('.section:last-of-type');
-    const body = document.getElementById('howToBody');
-    section.classList.toggle('open');
-    body.classList.toggle('hidden');
+    document.getElementById('howto-section').classList.toggle('open');
+    document.getElementById('howToBody').classList.toggle('hidden');
   });
 }
 
@@ -139,10 +152,11 @@ function initPlatformPills() {
     desktop: document.getElementById('guide-desktop'),
   };
 
-  // Detect current platform
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  const isDesktop = window.matchMedia('(min-width: 768px)').matches;
-  const platform = isIOS ? 'ios' : isDesktop ? 'desktop' : 'android';
+  // Detect current platform (iPadOS 13+ reports as Macintosh, hence maxTouchPoints)
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.maxTouchPoints > 1 && /Mac/.test(ua));
+  const platform = isIOS ? 'ios' : /Android/.test(ua) ? 'android' : 'desktop';
 
   function showPlatform(p) {
     pills.forEach(pl => pl.classList.toggle('active', pl.dataset.platform === p));
@@ -159,19 +173,14 @@ function initPlatformPills() {
 }
 
 // ─── Core: URL handling ──────────────────────────────────────
-function isValidUrl(string) {
-  try { new URL(string); return true; }
-  catch { return false; }
-}
+const TRACKING_PARAMS = ['fbclid', 'gclid', 'igshid'];
 
-async function checkClipboardPermission() {
-  if ('permissions' in navigator) {
-    try {
-      const s = await navigator.permissions.query({ name: 'clipboard-write' });
-      return s.state === 'granted' || s.state === 'prompt';
-    } catch {}
-  }
-  return true;
+function stripTrackingParams(parsed) {
+  const params = parsed.searchParams;
+  [...params.keys()]
+    .filter(k => k.startsWith('utm_') || TRACKING_PARAMS.includes(k))
+    .forEach(k => params.delete(k));
+  return parsed.href;
 }
 
 async function copyText(text) {
@@ -217,7 +226,7 @@ function setStatus(html) {
 }
 
 async function handleSharedUrl(url) {
-  url = url.split('?')[0].trim();
+  url = url.trim();
   if (!url) return;
 
   clearError();
@@ -229,19 +238,21 @@ async function handleSharedUrl(url) {
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     url = 'https://' + url;
   }
-  if (!isValidUrl(url)) {
+
+  let parsed;
+  try { parsed = new URL(url); }
+  catch {
     showError('Invalid URL. Check the format (e.g. https://example.com)');
     return;
   }
+  url = stripTrackingParams(parsed);
 
-  const backend = localStorage.getItem('rizit_backend') || 'archive.is';
-  const backendLabel = getBackendLabel(backend);
+  const backendLabel = getBackendLabel(getBackend());
   const archiveUrl = getArchiveUrl(url);
 
-  setStatus('<span class="spinner"></span> Checking with ' + backendLabel + '…');
-
-  const copied = await copyText(archiveUrl);
+  // Open synchronously so the user-activation grant isn't lost to an await
   const newTab = window.open(archiveUrl, '_blank');
+  if (newTab) newTab.opener = null;
 
   if (!newTab) {
     setStatus('Popup blocked. <a href="' + archiveUrl + '" target="_blank" rel="noopener">Open ' + backendLabel + '</a> — archive link is in your clipboard.');
@@ -249,6 +260,7 @@ async function handleSharedUrl(url) {
     setStatus('Opening ' + backendLabel + '… the archive link is in your clipboard.');
   }
 
+  const copied = await copyText(archiveUrl);
   if (copied) showToast();
   else showError('Couldn\'t copy to clipboard — the archive link is shown above.');
 
@@ -257,7 +269,7 @@ async function handleSharedUrl(url) {
 
 // ─── Init ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  initTheme();
+  updateThemeIcon();
   initInstallBanner();
   initCollapsibles();
   initPlatformPills();
@@ -279,6 +291,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // Clear history
   document.getElementById('clearHistory')?.addEventListener('click', clearHistory);
 
+  // Re-archive buttons (delegated)
+  document.getElementById('historyList')?.addEventListener('click', e => {
+    const btn = e.target.closest('.re-archive-btn');
+    if (btn) handleSharedUrl(btn.dataset.url);
+  });
+
   // Single URL form (hero input)
   const urlForm = document.getElementById('urlForm');
   const urlInput = document.getElementById('urlInput');
@@ -287,16 +305,14 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       handleSharedUrl(urlInput.value);
     });
-    urlInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); handleSharedUrl(urlInput.value); }
-    });
   }
 
-  // Web Share Target (Android shared this app a URL)
+  // Web Share Target (Android shared this app a URL, often as "Title https://…")
   const params = new URLSearchParams(window.location.search);
   const shared = params.get('url') || params.get('text');
   if (shared?.trim()) {
-    handleSharedUrl(shared.trim());
+    const match = shared.match(/https?:\/\/\S+/);
+    handleSharedUrl(match ? match[0] : shared.trim());
   }
 
   // Service Worker

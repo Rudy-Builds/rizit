@@ -6,8 +6,8 @@
   "orientation": "any",
   "lang": "en",
   "categories": ["utilities"],
-  "background_color": "#333333",
-  "theme_color": "#333333",
+  "background_color": "#f4f3f7",
+  "theme_color": "#f4f3f7",
   "icons": [
     {
       "src": "icon-192.png",

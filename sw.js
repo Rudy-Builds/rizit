@@ -1,5 +1,5 @@
 // Use a versioned cache name to ensure updates are reflected
-const CACHE_VERSION = 'v10.1'; // Increment this version when you make changes
+const CACHE_VERSION = 'v10.2'; // Increment this version when you make changes
 const CACHE_NAME = `rizit-cache-${CACHE_VERSION}`;
 const urlsToCache = [
   '/',
@@ -75,8 +75,9 @@ self.addEventListener('fetch', event => {
         return networkResponse;
       })
       .catch(() => {
-        // If the network fails (e.g., offline), fall back to the cache
-        return caches.match(event.request).then(cachedResponse => {
+        // If the network fails (e.g., offline), fall back to the cache.
+        // ignoreSearch lets share-target navigations like /?url=… match the cached /
+        return caches.match(event.request, { ignoreSearch: true }).then(cachedResponse => {
           return cachedResponse || new Response('Offline: No cached version available.', {
             status: 503,
             statusText: 'Service Unavailable'

@@ -10,6 +10,16 @@
   <meta name="theme-color" content="#f4f3f7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#13131a" media="(prefers-color-scheme: dark)">
   <link rel="manifest" href="manifest.json">
+  <script>
+    // Apply theme before first paint to avoid a light flash for dark-mode users
+    (function () {
+      var stored = localStorage.getItem('rizit_theme');
+      if (stored) document.documentElement.setAttribute('data-theme', stored);
+      else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="styles.css">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
 </head>
@@ -84,14 +94,13 @@
     </div>
 
     <!-- ── History ────────────────────────────────────── -->
-    <div id="history-section" class="section hidden">
+    <div id="history-section" class="section open hidden">
       <div class="section-header" id="historyToggle">
         <span class="section-title">Recent</span>
         <span class="section-chevron">&#9660;</span>
       </div>
       <div class="section-body" id="historyBody">
         <div id="historyList"></div>
-        <div id="historyEmpty" class="history-empty hidden">No recent lookups</div>
         <div class="history-footer">
           <button class="clear-history" id="clearHistory">Clear history</button>
         </div>
@@ -99,7 +108,7 @@
     </div>
 
     <!-- ── How to Use ─────────────────────────────────── -->
-    <div class="section open">
+    <div id="howto-section" class="section open">
       <div class="section-header" id="howToToggle">
         <span class="section-title">How to use</span>
         <span class="section-chevron">&#9660;</span>
